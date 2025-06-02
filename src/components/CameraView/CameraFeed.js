@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Paper, Typography, IconButton } from '@mui/material';
 import {
   Videocam as CameraIcon,
@@ -8,9 +8,83 @@ import {
 } from '@mui/icons-material';
 import DefectOverlay from '../common/DefectOverlay';
 
-const CameraFeed = ({ mode, onModeChange, defects }) => {
+// Helper to convert canvas to JPEG blob
+const getFrameBlob = (video, width = 640, height = 480) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, width, height);
+  return new Promise(resolve => {
+    canvas.toBlob(blob => resolve(blob), 'image/jpeg', 0.7);
+  });
+};
+
+const PREDICT_URL = 'http://localhost:5000/predict'; // Flask endpoint you need to implement
+
+const CameraFeed = ({ mode, onModeChange }) => {
+  const [stream, setStream] = useState(null);
+  const [defects, setDefects] = useState([]);
+  const leftVideoRef = useRef(null);
+  const rightVideoRef = useRef(null);
+
+  // Get webcam stream
+  useEffect(() => {
+    let active = true;
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(mediaStream => { if (active) setStream(mediaStream); })
+      .catch(() => setStream(null));
+    return () => {
+      active = false;
+      if (stream) stream.getTracks().forEach(track => track.stop());
+    };
+    // eslint-disable-next-line
+  }, []);
+
+  // Real-time prediction loop
+  useEffect(() => {
+    let running = true;
+    const fetchPrediction = async (video, camera) => {
+      if (!video || video.readyState < 2) return [];
+      const blob = await getFrameBlob(video);
+      const formData = new FormData();
+      formData.append('image', blob, 'frame.jpg');
+      formData.append('camera', camera);
+      try {
+        const res = await fetch(PREDICT_URL, { method: 'POST', body: formData });
+        if (!res.ok) return [];
+        const data = await res.json();
+        // Attach camera info to each defect
+        return (data.defects || []).map(d => ({ ...d, camera }));
+      } catch {
+        return [];
+      }
+    };
+
+    const loop = async () => {
+      while (running) {
+        let allDefects = [];
+        if (mode === 'dual') {
+          const [left, right] = await Promise.all([
+            fetchPrediction(leftVideoRef.current, 'left'),
+            fetchPrediction(rightVideoRef.current, 'right')
+          ]);
+          allDefects = [...left, ...right];
+        } else if (mode === 'left') {
+          allDefects = await fetchPrediction(leftVideoRef.current, 'left');
+        } else if (mode === 'right') {
+          allDefects = await fetchPrediction(rightVideoRef.current, 'right');
+        }
+        setDefects(allDefects);
+        await new Promise(res => setTimeout(res, 200)); // ~5 FPS
+      }
+    };
+    loop();
+    return () => { running = false; };
+  }, [mode, stream]);
+
   return (
-    <Paper sx={{ 
+    <Paper sx={{
       height: '100%',
       display: 'flex',
       flexDirection: 'column',
@@ -33,22 +107,22 @@ const CameraFeed = ({ mode, onModeChange, defects }) => {
           {mode === 'dual' ? 'Dual Camera View' : mode === 'left' ? 'Left Rail Camera' : 'Right Rail Camera'}
         </Typography>
         <Box>
-          <IconButton 
-            onClick={() => onModeChange('dual')} 
+          <IconButton
+            onClick={() => onModeChange('dual')}
             color={mode === 'dual' ? 'primary' : 'inherit'}
             sx={{ color: mode === 'dual' ? '#00FFFF' : 'white' }}
           >
             <DualCamIcon />
           </IconButton>
-          <IconButton 
-            onClick={() => onModeChange('left')} 
+          <IconButton
+            onClick={() => onModeChange('left')}
             color={mode === 'left' ? 'primary' : 'inherit'}
             sx={{ color: mode === 'left' ? '#00FFFF' : 'white' }}
           >
             <LeftCamIcon />
           </IconButton>
-          <IconButton 
-            onClick={() => onModeChange('right')} 
+          <IconButton
+            onClick={() => onModeChange('right')}
             color={mode === 'right' ? 'primary' : 'inherit'}
             sx={{ color: mode === 'right' ? '#00FFFF' : 'white' }}
           >
@@ -65,18 +139,22 @@ const CameraFeed = ({ mode, onModeChange, defects }) => {
         position: 'relative'
       }}>
         {(mode === 'dual' || mode === 'left') && (
-          <SingleCameraFeed 
+          <SingleCameraFeed
             side="left"
             defects={defects.filter(d => d.camera === 'left')}
             isDual={mode === 'dual'}
+            stream={stream}
+            videoRef={leftVideoRef}
           />
         )}
-        
+
         {(mode === 'dual' || mode === 'right') && (
-          <SingleCameraFeed 
+          <SingleCameraFeed
             side="right"
             defects={defects.filter(d => d.camera === 'right')}
             isDual={mode === 'dual'}
+            stream={stream}
+            videoRef={rightVideoRef}
           />
         )}
       </Box>
@@ -84,7 +162,12 @@ const CameraFeed = ({ mode, onModeChange, defects }) => {
   );
 };
 
-const SingleCameraFeed = ({ side, defects, isDual }) => {
+const SingleCameraFeed = ({ side, defects, isDual, stream, videoRef }) => {
+  useEffect(() => {
+    if (videoRef && videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream, videoRef]);
   return (
     <Box sx={{
       position: 'relative',
@@ -93,24 +176,27 @@ const SingleCameraFeed = ({ side, defects, isDual }) => {
       borderRight: isDual && side === 'left' ? '2px solid #333' : 'none',
       overflow: 'hidden'
     }}>
-      {/* Simulated camera feed */}
-      <Box sx={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        background: side === 'left' 
-          ? 'linear-gradient(45deg, #333 25%, #444 25%, #444 50%, #333 50%, #333 75%, #444 75%, #444 100%)'
-          : 'linear-gradient(45deg, #222 25%, #333 25%, #333 50%, #222 50%, #222 75%, #333 75%, #333 100%)',
-        backgroundSize: '20px 20px',
-        opacity: 0.4
-      }} />
-      
-      <Typography 
-        variant="h4" 
-        color="white" 
-        sx={{ 
+      {/* Webcam feed */}
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          zIndex: 0,
+          background: '#222'
+        }}
+      />
+      <Typography
+        variant="h4"
+        color="white"
+        sx={{
           position: 'absolute',
           top: '50%',
           left: '50%',
@@ -122,10 +208,9 @@ const SingleCameraFeed = ({ side, defects, isDual }) => {
       >
         {side === 'left' ? 'LEFT RAIL VIEW' : 'RIGHT RAIL VIEW'}
       </Typography>
-      
       {/* Defect overlays */}
       {defects.map(defect => (
-        <DefectOverlay key={defect.id} defect={defect} />
+        <DefectOverlay key={defect.id || Math.random()} defect={defect} />
       ))}
     </Box>
   );
