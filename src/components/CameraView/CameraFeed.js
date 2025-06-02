@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Box, Paper, Typography, IconButton } from '@mui/material';
 import {
   Videocam as CameraIcon,
@@ -9,6 +9,25 @@ import {
 import DefectOverlay from '../common/DefectOverlay';
 
 const CameraFeed = ({ mode, onModeChange, defects }) => {
+  const [stream, setStream] = useState(null);
+
+  useEffect(() => {
+    // Request webcam access on mount
+    let active = true;
+    navigator.mediaDevices.getUserMedia({ video: true })
+      .then(mediaStream => {
+        if (active) setStream(mediaStream);
+      })
+      .catch(() => setStream(null));
+    return () => {
+      active = false;
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+    // eslint-disable-next-line
+  }, []);
+
   return (
     <Paper sx={{ 
       height: '100%',
@@ -69,6 +88,7 @@ const CameraFeed = ({ mode, onModeChange, defects }) => {
             side="left"
             defects={defects.filter(d => d.camera === 'left')}
             isDual={mode === 'dual'}
+            stream={stream}
           />
         )}
         
@@ -77,6 +97,7 @@ const CameraFeed = ({ mode, onModeChange, defects }) => {
             side="right"
             defects={defects.filter(d => d.camera === 'right')}
             isDual={mode === 'dual'}
+            stream={stream}
           />
         )}
       </Box>
@@ -84,7 +105,15 @@ const CameraFeed = ({ mode, onModeChange, defects }) => {
   );
 };
 
-const SingleCameraFeed = ({ side, defects, isDual }) => {
+const SingleCameraFeed = ({ side, defects, isDual, stream }) => {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
   return (
     <Box sx={{
       position: 'relative',
@@ -93,20 +122,23 @@ const SingleCameraFeed = ({ side, defects, isDual }) => {
       borderRight: isDual && side === 'left' ? '2px solid #333' : 'none',
       overflow: 'hidden'
     }}>
-      {/* Simulated camera feed */}
-      <Box sx={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
-        background: side === 'left' 
-          ? 'linear-gradient(45deg, #333 25%, #444 25%, #444 50%, #333 50%, #333 75%, #444 75%, #444 100%)'
-          : 'linear-gradient(45deg, #222 25%, #333 25%, #333 50%, #222 50%, #222 75%, #333 75%, #333 100%)',
-        backgroundSize: '20px 20px',
-        opacity: 0.4
-      }} />
-      
+      {/* Webcam feed */}
+      <video
+        ref={videoRef}
+        autoPlay
+        muted
+        playsInline
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          zIndex: 0,
+          background: '#222'
+        }}
+      />
       <Typography 
         variant="h4" 
         color="white" 
