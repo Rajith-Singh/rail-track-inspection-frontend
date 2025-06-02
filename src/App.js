@@ -1,21 +1,21 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import PatrolmanDashboard from './components/PatrolmanDashboard';
-import DefectDetails from './components/DefectDetails';
-import Login from './components/Login';
-import NotFound from './components/NotFound';
+import { ThemeProvider } from '@mui/material/styles';
+import { CssBaseline } from '@mui/material';
+import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { theme } from './assets/styles/theme';
+import PatrolmanDashboard from './pages/PatrolmanDashboard';
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/dashboard" element={<PatrolmanDashboard />} />
-        <Route path="/defect/:id" element={<DefectDetails />} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </Router>
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
+      <Router>
+        <Routes>
+          <Route path="/" element={<PatrolmanDashboard />} />
+          <Route path="/dashboard" element={<PatrolmanDashboard />} />
+        </Routes>
+      </Router>
+    </ThemeProvider>
   );
 }
 
