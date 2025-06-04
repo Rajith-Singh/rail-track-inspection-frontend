@@ -1,19 +1,18 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
 
-function createWindow() {
+function createWindow () {
   const win = new BrowserWindow({
     width: 950,
     height: 800,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true,
-    },
+      contextIsolation: true
+    }
   });
 
-  // In development, load from localhost; in production, load from build folder
-  const startUrl = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, 'build', 'index.html')}`;
-  win.loadURL(startUrl);
+  // Load your React app (adjust if your build output is elsewhere)
+  win.loadURL('http://localhost:3000');
 }
 
 app.whenReady().then(createWindow);

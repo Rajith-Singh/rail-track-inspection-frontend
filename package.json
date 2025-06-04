@@ -2,11 +2,14 @@
   "name": "patrolman-interface",
   "version": "0.1.0",
   "private": true,
+  "main": "main.js",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^7.1.0",
     "@mui/material": "^7.1.0",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-tflite": "^0.0.1-alpha.10",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -22,8 +25,7 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "electron": "set ELECTRON_START_URL=http://localhost:3000 && electron .",
-    "electron-build": "npm run build && electron ."
+    "electron": "electron ."
   },
   "eslintConfig": {
     "extends": [
@@ -42,9 +44,5 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
-  },
-  "main": "main.js",
-  "devDependencies": {
-    "electron": "^28.3.3"
   }
 }
